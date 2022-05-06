@@ -55,5 +55,8 @@ func entrypoint() error {
 	}
 
 	app, err := importer.NewApp(aws, manifestBucket, manifestKey, tableName).SetConcurrency(concurrency).Validate()
+	if err != nil {
+		return fmt.Errorf("failed to configure App: %w", err)
+	}
 	return app.Run(ctx)
 }

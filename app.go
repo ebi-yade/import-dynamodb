@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go/ptr"
+	"go.uber.org/multierr"
 )
 
 type App struct {
@@ -73,7 +74,23 @@ func (a *App) SetConcurrency(max *int) *App {
 }
 
 func (a *App) Validate() (*App, error) {
-	// TODO: Add nil check (temporarily unnecessary because the struct is not expected to be used by external projects)
+	var ers error
+	if a.manifestBucket == nil {
+		ers = multierr.Append(ers, fmt.Errorf("the bucket name of manifest file on S3 is required, but not set"))
+	}
+	if a.manifestKey == nil {
+		ers = multierr.Append(ers, fmt.Errorf("the key name of manifest file on S3 is required, but not set"))
+	}
+	if a.tableName == nil {
+		ers = multierr.Append(ers, fmt.Errorf("the table name of DynamoDB to import data into is required, but not set"))
+	}
+	if a.concurrency == nil {
+		ers = multierr.Append(ers, fmt.Errorf("the max concurrency value of BatchWriteItem operation is required, but not set"))
+	}
+	if ers != nil {
+		return a, ers
+	}
+
 	if c := *a.concurrency; c < 1 || c > 25 {
 		return a, fmt.Errorf("concurrency (c) needs to fill: 0 < c <= 25, but was %d", c)
 	}

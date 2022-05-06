@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.26.7
 	github.com/ebi-yade/frog v0.0.4
 	github.com/hashicorp/logutils v1.0.0
+	go.uber.org/multierr v1.8.0
 )
 
 require (
@@ -19,6 +20,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.13.4 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	go.uber.org/atomic v1.7.0 // indirect
 )
 
 require (

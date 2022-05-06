@@ -120,7 +120,7 @@ func (a App) Run(ctx context.Context) error {
 	}
 
 	for _, man := range manifests {
-		log.Println("manifest:", man)
+		log.Println("data S3 key:", *man.DataFileS3Key)
 	}
 	return nil
 }

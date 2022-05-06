@@ -85,15 +85,15 @@ func (a *App) Validate() (*App, error) {
 		ers = multierr.Append(ers, fmt.Errorf("the table name of DynamoDB to import data into is required, but not set"))
 	}
 	if a.concurrency == nil {
-		log.Println("[DEBUG] concurrency is not specified, then set to default (25)")
-		a.concurrency = ptr.Int(25)
+		log.Println("[DEBUG] concurrency is not specified, then set to default (10)")
+		a.concurrency = ptr.Int(10)
 	}
 	if ers != nil {
 		return a, ers
 	}
 
-	if c := *a.concurrency; c < 1 || c > 25 {
-		return a, fmt.Errorf("concurrency (c) needs to fill: 0 < c <= 25, but was %d", c)
+	if *a.concurrency < 1 {
+		return a, fmt.Errorf("concurrency needs to be a natural number, but was %d", *a.concurrency)
 	}
 	return a, nil
 }

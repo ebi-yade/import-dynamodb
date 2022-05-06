@@ -85,7 +85,8 @@ func (a *App) Validate() (*App, error) {
 		ers = multierr.Append(ers, fmt.Errorf("the table name of DynamoDB to import data into is required, but not set"))
 	}
 	if a.concurrency == nil {
-		ers = multierr.Append(ers, fmt.Errorf("the max concurrency value of BatchWriteItem operation is required, but not set"))
+		log.Println("[DEBUG] concurrency is not specified, then set to default (25)")
+		a.concurrency = ptr.Int(25)
 	}
 	if ers != nil {
 		return a, ers

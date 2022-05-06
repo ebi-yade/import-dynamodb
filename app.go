@@ -100,11 +100,22 @@ func (a *App) Validate() (*App, error) {
 
 func (a App) Run(ctx context.Context) error {
 	ddbClient := dynamodb.NewFromConfig(a.AWS)
-	_, err := ddbClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+	tableOut, err := ddbClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
 		TableName: a.tableName,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to find the DynamoDB table: %s: %w", *a.tableName, err)
+	}
+
+	var hashKey string
+	for _, attr := range tableOut.Table.KeySchema {
+		if attr.KeyType == "HASH" {
+			hashKey = *attr.AttributeName
+			break
+		}
+	}
+	if hashKey == "" {
+		return fmt.Errorf("failed to get hash key of the table: %s", *a.tableName)
 	}
 
 	s3Client := s3.NewFromConfig(a.AWS)

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/hashicorp/logutils"
@@ -34,6 +35,9 @@ func entrypoint() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
+	if debug, _ := strconv.ParseBool(os.Getenv("DEBUG")); debug {
+		filter.MinLevel = logutils.LogLevel("DEBUG")
+	}
 	log.SetOutput(filter)
 
 	var (

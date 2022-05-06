@@ -8,6 +8,8 @@ import (
 	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go/ptr"
 )
 
@@ -79,6 +81,28 @@ func (a *App) Validate() (*App, error) {
 }
 
 func (a App) Run(ctx context.Context) error {
-	// TODO: implement this
-	panic("implement me!")
+	ddbClient := dynamodb.NewFromConfig(a.AWS)
+	_, err := ddbClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+		TableName: a.tableName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to find the DynamoDB table: %s: %w", *a.tableName, err)
+	}
+
+	s3Client := s3.NewFromConfig(a.AWS)
+	bucket := a.manifestBucket
+	summary, err := loadSummary(ctx, s3Client, bucket, a.manifestKey)
+	if err != nil {
+		return fmt.Errorf("failed to load the manifest summary file: %w", err)
+	}
+
+	manifests, err := loadManifests(ctx, s3Client, bucket, summary.ManifestFilesS3Key)
+	if err != nil {
+		return fmt.Errorf("failed to load the manifest file: %w", err)
+	}
+
+	for _, man := range manifests {
+		log.Println("manifest:", man)
+	}
+	return nil
 }

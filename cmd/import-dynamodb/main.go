@@ -8,7 +8,8 @@ import (
 	"os/signal"
 	"strconv"
 
-	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/hashicorp/logutils"
 
 	"github.com/ebi-yade/frog"
@@ -53,12 +54,9 @@ func entrypoint() error {
 	frog.IntVar(concurrency, "concurrency", "max concurrency of BatchWriteItem process (no more than 25)")
 	frog.Parse()
 
-	aws, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to load AWS config at entrypoint(): %w", err)
-	}
+	sess := session.Must(session.NewSession(aws.NewConfig()))
 
-	app, err := importer.NewApp(aws, manifestBucket, manifestKey, tableName).SetConcurrency(concurrency).Validate()
+	app, err := importer.NewApp(sess, manifestBucket, manifestKey, tableName).SetConcurrency(concurrency).Validate()
 	if err != nil {
 		return fmt.Errorf("failed to configure App: %w", err)
 	}

@@ -6,14 +6,14 @@ import (
 	"log"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
 type DDB struct {
 	hashKey string
 }
 
-func (a App) describeDDB(ctx context.Context, ddbClient *dynamodb.Client) (DDB, error) {
+func (a App) describeDDB(ctx context.Context, ddbClient *dynamodb.DynamoDB) (DDB, error) {
 	var (
 		tableOut *dynamodb.DescribeTableOutput
 		err      error
@@ -22,13 +22,13 @@ func (a App) describeDDB(ctx context.Context, ddbClient *dynamodb.Client) (DDB, 
 	)
 	maxRetries := 8 // wait for DynamoDB table status to be active at most 256 sec
 	for {
-		tableOut, err = ddbClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+		tableOut, err = ddbClient.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
 			TableName: a.tableName,
 		})
 		if err != nil {
 			return res, fmt.Errorf("failed to find the DynamoDB table: %s: %w", *a.tableName, err)
 		}
-		if tableOut.Table.TableStatus == "ACTIVE" {
+		if *tableOut.Table.TableStatus == "ACTIVE" {
 			break
 		}
 		if retries > maxRetries-2 {
@@ -42,7 +42,7 @@ func (a App) describeDDB(ctx context.Context, ddbClient *dynamodb.Client) (DDB, 
 
 	var hashKey string
 	for _, attr := range tableOut.Table.KeySchema {
-		if attr.KeyType == "HASH" {
+		if *attr.KeyType == "HASH" {
 			hashKey = *attr.AttributeName
 			break
 		}

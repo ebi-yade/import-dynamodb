@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3"
 )
 
 type Summary struct {
@@ -14,9 +14,9 @@ type Summary struct {
 	OutputFormat       *string `json:"outputFormat"`
 }
 
-func loadSummary(ctx context.Context, s3Client *s3.Client, bucket *string, key *string) (*Summary, error) {
+func loadSummary(ctx context.Context, s3Client *s3.S3, bucket *string, key *string) (*Summary, error) {
 	var summary Summary
-	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{Bucket: bucket, Key: key})
+	output, err := s3Client.GetObjectWithContext(ctx, &s3.GetObjectInput{Bucket: bucket, Key: key})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the summary file: %w", err)
 	}
@@ -37,8 +37,8 @@ type Manifest struct {
 	DataFileS3Key *string `json:"dataFileS3Key"`
 }
 
-func loadManifests(ctx context.Context, s3Client *s3.Client, bucket *string, key *string) ([]Manifest, error) {
-	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{Bucket: bucket, Key: key})
+func loadManifests(ctx context.Context, s3Client *s3.S3, bucket *string, key *string) ([]Manifest, error) {
+	output, err := s3Client.GetObjectWithContext(ctx, &s3.GetObjectInput{Bucket: bucket, Key: key})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the manifest summary file: %w", err)
 	}

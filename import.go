@@ -27,7 +27,7 @@ type row struct {
 const limitBatchWriteItems = 25
 
 func (a App) importByManifest(ctx context.Context, ddbClient *dynamodb.Client, s3Client *s3.Client, manifest Manifest, ddb DDB) error {
-	log.Printf("[DEBUG] import data via %#v\n", manifest)
+	log.Printf("[INFO] importing data via s3://%s/%s\n", *a.manifestBucket, *manifest.DataFileS3Key)
 	ctxImport, cancel := context.WithCancel(ctx)
 	defer cancel()
 

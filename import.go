@@ -7,11 +7,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"go.uber.org/multierr"
 
 	"github.com/ebi-yade/import-dynamodb/convert"
 )
@@ -20,7 +24,31 @@ type row struct {
 	Item map[string]events.DynamoDBAttributeValue `json:"Item"`
 }
 
+const limitBatchWriteItems = 25
+
 func (a App) importByManifest(ctx context.Context, ddbClient *dynamodb.Client, s3Client *s3.Client, manifest Manifest, ddb DDB) error {
+	log.Printf("[DEBUG] import data via %#v\n", manifest)
+	ctxImport, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	batchData := make(chan []types.WriteRequest, *a.concurrency)
+	writeDone := make(chan error)
+	go func() {
+		a.batch(ctxImport, ddbClient, batchData, writeDone)
+	}()
+
+	if err := a.invoke(ctxImport, s3Client, manifest, ddb, batchData); err != nil {
+		cancel()
+		return fmt.Errorf("error in the invoke process: %w", err)
+	}
+
+	if err := <-writeDone; err != nil {
+		return fmt.Errorf("error in the batch process %w", err)
+	}
+	return nil
+}
+
+func (a App) invoke(ctx context.Context, s3Client *s3.Client, manifest Manifest, ddb DDB, batchData chan []types.WriteRequest) error {
 	data, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: a.manifestBucket,
 		Key:    manifest.DataFileS3Key,
@@ -28,12 +56,13 @@ func (a App) importByManifest(ctx context.Context, ddbClient *dynamodb.Client, s
 	if err != nil {
 		return fmt.Errorf("failed to get the file from s3://%s/%s: %w", *a.manifestBucket, *manifest.DataFileS3Key, err)
 	}
-
 	reader, err := gzip.NewReader(data.Body)
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}
 	defer reader.Close()
+
+	store := make(map[string][]types.WriteRequest)
 
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
@@ -49,10 +78,62 @@ func (a App) importByManifest(ctx context.Context, ddbClient *dynamodb.Client, s
 			return fmt.Errorf("failed to convert events.DynamoDBAttributeValue to types.AttributeValue")
 		}
 
-		// debug!!
-		log.Printf("hash key: %#v", item["HashKey"])
-		break
+		key, err := convert.Stringify(r.Item[ddb.hashKey])
+		if err != nil {
+			return fmt.Errorf("failed to convert r.Item[hashKey] into a string value: %w", err)
+		}
 
+		cache, ok := store[key]
+		if !ok {
+			cache = make([]types.WriteRequest, 0, limitBatchWriteItems)
+		}
+		cache = append(cache, types.WriteRequest{PutRequest: &types.PutRequest{Item: item}})
+		if len(cache) < limitBatchWriteItems && len(cache) != rand.Intn(limitBatchWriteItems) {
+			store[key] = cache
+		} else {
+			batchData <- cache
+			delete(store, key)
+		}
 	}
+
+	// flush stored data at the end
+	buffer := make([]types.WriteRequest, 0, limitBatchWriteItems)
+	for _, items := range store {
+		if len(buffer)+len(items) > limitBatchWriteItems {
+			batchData <- buffer
+			buffer = buffer[:0]
+		}
+		buffer = append(buffer, items...)
+	}
+	batchData <- buffer
+	close(batchData)
 	return nil
+}
+
+func (a App) batch(ctx context.Context, ddbClient *dynamodb.Client, batchData chan []types.WriteRequest, writeDone chan error) {
+	wg := &sync.WaitGroup{}
+	var ers error
+	for i := 0; i < *a.concurrency; i++ {
+		wg.Add(1)
+		go func(ctx context.Context, id int, batchData chan []types.WriteRequest) {
+			defer wg.Done()
+			log.Printf("[DEBUG] starting the batch (processID: %d)\n", id)
+			for {
+				select {
+				case reqs, ok := <-batchData:
+					if !ok {
+						log.Printf("[DEBUG] closed channel detected (processID: %d)\n", id)
+						return
+					}
+					if len(reqs) > 0 {
+						log.Printf("[DEBUG] processing a request (processID: %d, length: %d)\n", id, len(reqs))
+					}
+				case <-ctx.Done():
+					ers = multierr.Append(ers, fmt.Errorf("ctx canceled in a.batch(): %w", ctx.Err()))
+				}
+			}
+		}(ctx, i, batchData)
+	}
+	wg.Wait()
+	writeDone <- ers
 }

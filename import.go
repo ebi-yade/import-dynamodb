@@ -31,9 +31,9 @@ func (a App) importByManifest(ctx context.Context, manifest Manifest, ddb DDB) e
 	defer cancel()
 
 	batchData := make(chan []types.WriteRequest, *a.concurrency)
-	writeDone := make(chan error)
+	batchDone := make(chan error)
 	go func() {
-		a.batch(ctxImport, batchData, writeDone)
+		a.batch(ctxImport, batchData, batchDone)
 	}()
 
 	if err := a.invoke(ctxImport, manifest, ddb, batchData); err != nil {
@@ -41,7 +41,7 @@ func (a App) importByManifest(ctx context.Context, manifest Manifest, ddb DDB) e
 		return fmt.Errorf("error in the invoke process: %w", err)
 	}
 
-	if err := <-writeDone; err != nil {
+	if err := <-batchDone; err != nil {
 		return fmt.Errorf("error in the batch process %w", err)
 	}
 	return nil

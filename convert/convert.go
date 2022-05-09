@@ -1,5 +1,6 @@
-// copied from: https://gist.github.com/Luke-Davies/eb67ddd90f73676a64ce5b0c7cf2ba80
 package convert
+
+// the code in this file is copied from: https://gist.github.com/Luke-Davies/eb67ddd90f73676a64ce5b0c7cf2ba80
 
 import (
 	"fmt"

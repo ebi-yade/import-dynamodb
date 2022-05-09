@@ -7,15 +7,15 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go/ptr"
 	"go.uber.org/multierr"
 )
 
 type App struct {
-	AWS *session.Session
+	AWS aws.Config
 
 	manifestBucket *string
 	manifestKey    *string
@@ -23,7 +23,7 @@ type App struct {
 	concurrency    *int
 }
 
-func loadApp(aws *session.Session) *App {
+func loadApp(aws aws.Config) *App {
 	app := &App{
 		AWS: aws,
 	}
@@ -50,7 +50,7 @@ func loadApp(aws *session.Session) *App {
 	return app
 }
 
-func NewApp(aws *session.Session, bucket *string, key *string, table *string) *App {
+func NewApp(aws aws.Config, bucket *string, key *string, table *string) *App {
 	app := loadApp(aws)
 
 	if bucket != nil {
@@ -99,14 +99,14 @@ func (a *App) Validate() (*App, error) {
 }
 
 func (a App) Run(ctx context.Context) error {
-	ddbClient := dynamodb.New(a.AWS)
+	ddbClient := dynamodb.NewFromConfig(a.AWS)
 	ddb, err := a.describeDDB(ctx, ddbClient)
 	if err != nil {
 		return fmt.Errorf("error in a.describeDDB: %w", err)
 	}
 	log.Println("[DEBUG] hash key name:", ddb.hashKey)
 
-	s3Client := s3.New(a.AWS)
+	s3Client := s3.NewFromConfig(a.AWS)
 	bucket := a.manifestBucket
 	summary, err := loadSummary(ctx, s3Client, bucket, a.manifestKey)
 	if err != nil {

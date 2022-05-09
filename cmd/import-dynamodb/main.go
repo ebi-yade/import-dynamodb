@@ -8,9 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/hashicorp/logutils"
 
 	"github.com/ebi-yade/frog"
@@ -55,17 +53,12 @@ func entrypoint() error {
 	frog.IntVar(concurrency, "concurrency", "max concurrency of BatchWriteItem process (no more than 25)")
 	frog.Parse()
 
-	sess, err := session.NewSession(aws.NewConfig())
+	aws, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to load the AWS configuration: %w", err)
+		return fmt.Errorf("failed to load AWS config at entrypoint(): %w", err)
 	}
-	idOut, err := sts.New(sess).GetCallerIdentity(&sts.GetCallerIdentityInput{})
-	if err != nil {
-		return fmt.Errorf("error in sts:GetCallerIdentity action: %w", err)
-	}
-	log.Println("[DEBUG] successfully created the AWS session with the identity:", *idOut.Arn)
 
-	app, err := importer.NewApp(sess, manifestBucket, manifestKey, tableName).SetConcurrency(concurrency).Validate()
+	app, err := importer.NewApp(aws, manifestBucket, manifestKey, tableName).SetConcurrency(concurrency).Validate()
 	if err != nil {
 		return fmt.Errorf("failed to configure App: %w", err)
 	}

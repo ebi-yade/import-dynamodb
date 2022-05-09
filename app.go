@@ -15,7 +15,8 @@ import (
 )
 
 type App struct {
-	AWS aws.Config
+	ddbClient *dynamodb.Client
+	s3Client  *s3.Client
 
 	manifestBucket *string
 	manifestKey    *string
@@ -25,7 +26,8 @@ type App struct {
 
 func loadApp(aws aws.Config) *App {
 	app := &App{
-		AWS: aws,
+		ddbClient: dynamodb.NewFromConfig(aws),
+		s3Client:  s3.NewFromConfig(aws),
 	}
 
 	if bucket, ok := os.LookupEnv("MANIFEST_S3_BUCKET"); ok {
@@ -99,21 +101,19 @@ func (a *App) Validate() (*App, error) {
 }
 
 func (a App) Run(ctx context.Context) error {
-	ddbClient := dynamodb.NewFromConfig(a.AWS)
-	ddb, err := a.describeDDB(ctx, ddbClient)
+	ddb, err := a.describeDDB(ctx)
 	if err != nil {
 		return fmt.Errorf("error in a.describeDDB: %w", err)
 	}
 	log.Println("[DEBUG] hash key name:", ddb.hashKey)
 
-	s3Client := s3.NewFromConfig(a.AWS)
 	bucket := a.manifestBucket
-	summary, err := loadSummary(ctx, s3Client, bucket, a.manifestKey)
+	summary, err := a.loadSummary(ctx, bucket, a.manifestKey)
 	if err != nil {
 		return fmt.Errorf("failed to load the manifest summary file: %w", err)
 	}
 
-	manifests, err := loadManifests(ctx, s3Client, bucket, summary.ManifestFilesS3Key)
+	manifests, err := a.loadManifests(ctx, bucket, summary.ManifestFilesS3Key)
 	if err != nil {
 		return fmt.Errorf("failed to load the manifest file: %w", err)
 	}
@@ -123,5 +123,5 @@ func (a App) Run(ctx context.Context) error {
 	}
 
 	// TODO: apply for-loop to manifests
-	return a.importByManifest(ctx, ddbClient, s3Client, manifests[0], ddb)
+	return a.importByManifest(ctx, manifests[0], ddb)
 }

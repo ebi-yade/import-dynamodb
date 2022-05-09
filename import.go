@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"go.uber.org/multierr"
@@ -26,7 +25,7 @@ type row struct {
 
 const limitBatchWriteItems = 25
 
-func (a App) importByManifest(ctx context.Context, ddbClient *dynamodb.Client, s3Client *s3.Client, manifest Manifest, ddb DDB) error {
+func (a App) importByManifest(ctx context.Context, manifest Manifest, ddb DDB) error {
 	log.Printf("[INFO] importing data via s3://%s/%s\n", *a.manifestBucket, *manifest.DataFileS3Key)
 	ctxImport, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -34,10 +33,10 @@ func (a App) importByManifest(ctx context.Context, ddbClient *dynamodb.Client, s
 	batchData := make(chan []types.WriteRequest, *a.concurrency)
 	writeDone := make(chan error)
 	go func() {
-		a.batch(ctxImport, ddbClient, batchData, writeDone)
+		a.batch(ctxImport, batchData, writeDone)
 	}()
 
-	if err := a.invoke(ctxImport, s3Client, manifest, ddb, batchData); err != nil {
+	if err := a.invoke(ctxImport, manifest, ddb, batchData); err != nil {
 		cancel()
 		return fmt.Errorf("error in the invoke process: %w", err)
 	}
@@ -48,8 +47,8 @@ func (a App) importByManifest(ctx context.Context, ddbClient *dynamodb.Client, s
 	return nil
 }
 
-func (a App) invoke(ctx context.Context, s3Client *s3.Client, manifest Manifest, ddb DDB, batchData chan []types.WriteRequest) error {
-	data, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+func (a App) invoke(ctx context.Context, manifest Manifest, ddb DDB, batchData chan []types.WriteRequest) error {
+	data, err := a.s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: a.manifestBucket,
 		Key:    manifest.DataFileS3Key,
 	})
@@ -110,7 +109,7 @@ func (a App) invoke(ctx context.Context, s3Client *s3.Client, manifest Manifest,
 	return nil
 }
 
-func (a App) batch(ctx context.Context, ddbClient *dynamodb.Client, batchData chan []types.WriteRequest, writeDone chan error) {
+func (a App) batch(ctx context.Context, batchData chan []types.WriteRequest, writeDone chan error) {
 	wg := &sync.WaitGroup{}
 	var ers error
 	for i := 0; i < *a.concurrency; i++ {

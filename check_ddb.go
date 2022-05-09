@@ -13,7 +13,7 @@ type DDB struct {
 	hashKey string
 }
 
-func (a App) describeDDB(ctx context.Context, ddbClient *dynamodb.Client) (DDB, error) {
+func (a App) describeDDB(ctx context.Context) (DDB, error) {
 	var (
 		tableOut *dynamodb.DescribeTableOutput
 		err      error
@@ -22,7 +22,7 @@ func (a App) describeDDB(ctx context.Context, ddbClient *dynamodb.Client) (DDB, 
 	)
 	maxRetries := 8 // wait for DynamoDB table status to be active at most 256 sec
 	for {
-		tableOut, err = ddbClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+		tableOut, err = a.ddbClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
 			TableName: a.tableName,
 		})
 		if err != nil {

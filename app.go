@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -100,14 +99,14 @@ func (a *App) Validate() (*App, error) {
 }
 
 func (a App) Run(ctx context.Context) error {
-	ddbClient := dynamodb.New(a.AWS, aws.NewConfig())
+	ddbClient := dynamodb.New(a.AWS)
 	ddb, err := a.describeDDB(ctx, ddbClient)
 	if err != nil {
 		return fmt.Errorf("error in a.describeDDB: %w", err)
 	}
 	log.Println("[DEBUG] hash key name:", ddb.hashKey)
 
-	s3Client := s3.New(a.AWS, aws.NewConfig())
+	s3Client := s3.New(a.AWS)
 	bucket := a.manifestBucket
 	summary, err := loadSummary(ctx, s3Client, bucket, a.manifestKey)
 	if err != nil {

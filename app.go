@@ -122,5 +122,6 @@ func (a App) Run(ctx context.Context) error {
 		log.Println("data S3 key:", *man.DataFileS3Key)
 	}
 
+	// TODO: apply for-loop to manifests
 	return a.importByManifest(ctx, ddbClient, s3Client, manifests[0], ddb)
 }

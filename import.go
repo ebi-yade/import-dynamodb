@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -125,7 +126,7 @@ func (a App) batch(ctx context.Context, batchData chan []types.WriteRequest, wri
 						return
 					}
 					if len(reqs) > 0 {
-						log.Printf("[DEBUG] processing a request (processID: %d, length: %d)\n", id, len(reqs))
+						ers = multierr.Append(ers, a.batchWriteItem(ctx, reqs, id))
 					}
 				case <-ctx.Done():
 					ers = multierr.Append(ers, fmt.Errorf("ctx canceled in a.batch(): %w", ctx.Err()))
@@ -135,4 +136,28 @@ func (a App) batch(ctx context.Context, batchData chan []types.WriteRequest, wri
 	}
 	wg.Wait()
 	writeDone <- ers
+}
+
+func (a App) batchWriteItem(ctx context.Context, reqs []types.WriteRequest, processID int) error {
+	log.Printf("[DEBUG] processing a request (processID: %d, length: %d)\n", processID, len(reqs))
+	const (
+		backOffBase = 100
+		maxRetries  = 8
+	)
+	var retries int
+	rand.Seed(time.Now().UnixNano())
+	for {
+		// out, err := a.ddbClient.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{})
+		// if err == nil { break }
+		//
+		if retries > maxRetries-2 {
+			break
+		}
+		duration := rand.Intn(backOffBase * (2 << retries))
+		log.Printf("[DEBUG] retry: an attempt (%d) after %v\n", retries+2, time.Duration(duration)*time.Millisecond)
+		// time.Sleep(duration)
+		retries++
+	}
+
+	return nil // TODO: take care of this!
 }

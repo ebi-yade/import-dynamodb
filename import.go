@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"go.uber.org/multierr"
@@ -126,7 +128,9 @@ func (a App) batch(ctx context.Context, batchData chan []types.WriteRequest, wri
 						return
 					}
 					if len(reqs) > 0 {
-						ers = multierr.Append(ers, a.batchWriteItem(ctx, reqs, id))
+						if err := a.batchWriteItem(ctx, reqs, id); err != nil {
+							ers = multierr.Append(ers, fmt.Errorf("a.batchWriteItem failed in processID %d, %w", id, err))
+						}
 					}
 				case <-ctx.Done():
 					ers = multierr.Append(ers, fmt.Errorf("ctx canceled in a.batch(): %w", ctx.Err()))
@@ -147,17 +151,31 @@ func (a App) batchWriteItem(ctx context.Context, reqs []types.WriteRequest, proc
 	var retries int
 	rand.Seed(time.Now().UnixNano())
 	for {
-		// out, err := a.ddbClient.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{})
-		// if err == nil { break }
-		//
-		if retries > maxRetries-2 {
-			break
+		out, err := a.ddbClient.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+			RequestItems: map[string][]types.WriteRequest{
+				*a.tableName: reqs,
+			},
+		})
+		if err == nil {
+			if len(out.UnprocessedItems) == 0 {
+				break
+			}
+			reqs = out.UnprocessedItems[*a.tableName]
 		}
-		duration := rand.Intn(backOffBase * (2 << retries))
-		log.Printf("[DEBUG] retry: an attempt (%d) after %v\n", retries+2, time.Duration(duration)*time.Millisecond)
-		// time.Sleep(duration)
+
+		var throughputExceeded *types.ProvisionedThroughputExceededException
+		if !errors.As(err, &throughputExceeded) {
+			return fmt.Errorf("the API call of dynamodb:BatchWriteItem returned an error: %w", err)
+		}
+
+		if retries > maxRetries-2 {
+			return fmt.Errorf("retry attempts reached the maximum value: %d", maxRetries)
+		}
+		duration := time.Duration(rand.Intn(backOffBase*(2<<retries))) * time.Millisecond
+		log.Printf("[DEBUG] retry: an attempt (%d) after %v (processID: %d)\n", retries+2, duration, processID)
+		time.Sleep(duration)
 		retries++
 	}
 
-	return nil // TODO: take care of this!
+	return nil
 }

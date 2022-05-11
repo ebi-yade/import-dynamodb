@@ -158,6 +158,7 @@ func (a App) batchWriteItem(ctx context.Context, reqs []types.WriteRequest, proc
 		})
 		if err == nil {
 			if len(out.UnprocessedItems) == 0 {
+				log.Printf("[DEBUG] BatchWriteItem succeeded (processID: %d, data length: %d)", processID, len(reqs))
 				break
 			}
 			reqs = out.UnprocessedItems[*a.tableName]

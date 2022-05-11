@@ -122,6 +122,12 @@ func (a App) Run(ctx context.Context) error {
 		log.Println("data S3 key:", *man.DataFileS3Key)
 	}
 
-	// TODO: apply for-loop to manifests
-	return a.importByManifest(ctx, manifests[0], ddb)
+	var ers error
+	for _, manifest := range manifests {
+		if err := a.importByManifest(ctx, manifest, ddb); err != nil {
+			ers = multierr.Append(ers, fmt.Errorf("error in a.importByManifest (key %s): %w", *manifest.DataFileS3Key, err))
+		}
+		log.Printf("[INFO] successfully imported data in the manifest (key %s)", *manifest.DataFileS3Key)
+	}
+	return ers
 }

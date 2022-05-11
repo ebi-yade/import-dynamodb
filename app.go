@@ -22,12 +22,15 @@ type App struct {
 	manifestKey    *string
 	tableName      *string
 	concurrency    *int
+
+	retry RetryOptions
 }
 
 func loadApp(aws aws.Config) *App {
 	app := &App{
 		ddbClient: dynamodb.NewFromConfig(aws),
 		s3Client:  s3.NewFromConfig(aws),
+		retry:     defaultRetryOptions,
 	}
 
 	if bucket, ok := os.LookupEnv("MANIFEST_S3_BUCKET"); ok {
@@ -71,6 +74,13 @@ func NewApp(aws aws.Config, bucket *string, key *string, table *string) *App {
 func (a *App) SetConcurrency(max *int) *App {
 	if max != nil {
 		a.concurrency = max
+	}
+	return a
+}
+
+func (a *App) SetRetryOptions(optionalFunctions ...func(*RetryOptions)) *App {
+	for _, fn := range optionalFunctions {
+		fn(&a.retry)
 	}
 	return a
 }

@@ -156,6 +156,7 @@ func (a App) batchWriteItem(ctx context.Context, reqs []types.WriteRequest, proc
 				*a.tableName: reqs,
 			},
 		})
+
 		if err == nil {
 			if len(out.UnprocessedItems) == 0 {
 				log.Printf("[DEBUG] BatchWriteItem succeeded (processID: %d, data length: %d)", processID, len(reqs))
@@ -165,7 +166,7 @@ func (a App) batchWriteItem(ctx context.Context, reqs []types.WriteRequest, proc
 		}
 
 		var throughputExceeded *types.ProvisionedThroughputExceededException
-		if !errors.As(err, &throughputExceeded) {
+		if err != nil && !errors.As(err, &throughputExceeded) {
 			return fmt.Errorf("the API call of dynamodb:BatchWriteItem returned an error: %w", err)
 		}
 
